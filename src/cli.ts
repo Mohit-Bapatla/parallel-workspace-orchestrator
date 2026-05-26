@@ -2,9 +2,11 @@
 
 import { Command } from "commander";
 
+import { runOrchestration } from "./orchestrator.js";
 import { loadPlan, validatePlan } from "./plan.js";
 import { loadState } from "./state.js";
 import { renderStatus } from "./status.js";
+import type { AgentType } from "./types.js";
 
 const program = new Command();
 
@@ -78,10 +80,79 @@ program
 program
   .command("run")
   .argument("<plan>", "path to an AWO YAML plan")
-  .option("--repo <repo>", "target repository path")
-  .action(() => {
-    console.log("run command not implemented yet");
-  });
+  .requiredOption("--repo <repo>", "target repository path")
+  .option("--agent <agent>", "agent type: dry-run, command, or claude")
+  .option("--agent-command <command>", "command to run when using the command agent")
+  .option("--strict", "treat plan warnings as validation errors")
+  .option("--new-run", "start a fresh run even if state exists")
+  .option("--timeout-minutes <number>", "agent timeout in minutes", parsePositiveNumber)
+  .option("--max-turns <number>", "maximum Claude turns", parsePositiveInteger)
+  .action(
+    async (
+      planPath: string,
+      options: {
+        repo: string;
+        agent?: string;
+        agentCommand?: string;
+        strict?: boolean;
+        newRun?: boolean;
+        timeoutMinutes?: number;
+        maxTurns?: number;
+      },
+    ) => {
+      try {
+        const orchestrationArgs: Parameters<typeof runOrchestration>[0] = {
+          planPath,
+          repoPath: options.repo,
+          strict: options.strict === true,
+          newRun: options.newRun === true,
+        };
+        const agentOverride = parseAgentOverride(options.agent);
+        if (agentOverride !== undefined) {
+          orchestrationArgs.agentOverride = agentOverride;
+        }
+        if (options.agentCommand !== undefined) {
+          orchestrationArgs.agentCommand = options.agentCommand;
+        }
+        if (options.timeoutMinutes !== undefined) {
+          orchestrationArgs.timeoutMinutes = options.timeoutMinutes;
+        }
+        if (options.maxTurns !== undefined) {
+          orchestrationArgs.maxTurns = options.maxTurns;
+        }
+        await runOrchestration(orchestrationArgs);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+      }
+    },
+  );
+
+function parseAgentOverride(value: string | undefined): AgentType | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "dry-run" || value === "command" || value === "claude") {
+    return value;
+  }
+  throw new Error(`Invalid agent "${value}". Expected dry-run, command, or claude.`);
+}
+
+function parsePositiveNumber(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Expected a positive number, got "${value}".`);
+  }
+  return parsed;
+}
+
+function parsePositiveInteger(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Expected a positive integer, got "${value}".`);
+  }
+  return parsed;
+}
 
 await program.parseAsync(process.argv);
 
