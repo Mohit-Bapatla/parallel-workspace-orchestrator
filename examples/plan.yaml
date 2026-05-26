@@ -8,32 +8,33 @@ tests:
   post_merge: npm test
 merge:
   strategy: no-ff
+  auto_resolve: []
 batches:
   - id: batch-1
     parts:
       - id: alpha
-        title: Generate alpha notes
+        title: Create alpha documentation
         files:
           - docs/generated/alpha.md
-        brief: Write the alpha section of the generated documentation.
+        brief: Create alpha documentation for the sample repository.
         acceptance:
-          - docs/generated/alpha.md exists.
-          - The content explains the alpha scope.
+          - docs/generated/alpha.md exists
+          - The document describes the alpha concept
       - id: beta
-        title: Generate beta notes
+        title: Create beta documentation
         files:
           - docs/generated/beta.md
-        brief: Write the beta section of the generated documentation.
+        brief: Create beta documentation for the sample repository.
         acceptance:
-          - docs/generated/beta.md exists.
-          - The content explains the beta scope.
+          - docs/generated/beta.md exists
+          - The document describes the beta concept
   - id: batch-2
     parts:
       - id: summary
-        title: Summarize generated notes
+        title: Create summary documentation
         files:
           - docs/generated/summary.md
-        brief: Create a summary that references the alpha and beta sections.
+        brief: Create summary documentation that references alpha and beta conceptually.
         acceptance:
-          - docs/generated/summary.md exists.
-          - The summary mentions both alpha and beta outputs.
+          - docs/generated/summary.md exists
+          - The summary mentions both alpha and beta concepts
