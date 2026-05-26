@@ -86,6 +86,14 @@ Claude mode is available when `claude` is installed and selected explicitly:
 npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude
 ```
 
+For local testing against a trusted repository, you can bypass Claude's interactive permission prompts:
+
+```bash
+npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude --claude-skip-permissions
+```
+
+> **Warning:** `--claude-skip-permissions` passes `--dangerously-skip-permissions` to `claude`. Only use this on repos you own and trust. Never use it against unknown or shared codebases.
+
 ## Agent Runners
 
 - `dry-run`: verified end-to-end. It creates deterministic sample changes in each worktree and does not require Claude.

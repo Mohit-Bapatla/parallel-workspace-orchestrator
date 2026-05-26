@@ -26,6 +26,7 @@ export async function runOrchestration(args: {
   newRun?: boolean;
   timeoutMinutes?: number;
   maxTurns?: number;
+  claudeSkipPermissions?: boolean;
 }): Promise<void> {
   const repoPath = path.resolve(args.repoPath);
   const planPath = path.resolve(args.planPath);
@@ -66,12 +67,15 @@ export async function runOrchestration(args: {
   const timeoutMs = timeoutMinutes * 60_000;
   const maxTurns = args.maxTurns ?? plan.agent.max_turns;
   const agentCommand = args.agentCommand ?? plan.agent.command;
-  const runnerOptions: { command?: string; maxTurns?: number } = {};
+  const runnerOptions: { command?: string; maxTurns?: number; claudeSkipPermissions?: boolean } = {};
   if (agentCommand !== undefined) {
     runnerOptions.command = agentCommand;
   }
   if (maxTurns !== undefined) {
     runnerOptions.maxTurns = maxTurns;
+  }
+  if (args.claudeSkipPermissions === true) {
+    runnerOptions.claudeSkipPermissions = true;
   }
   const runner = createAgentRunner(agentType, runnerOptions);
 

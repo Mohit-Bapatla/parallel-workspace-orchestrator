@@ -32,14 +32,14 @@ export interface AgentRunner {
 
 export function createAgentRunner(
   type: AgentType,
-  options: { command?: string; maxTurns?: number } = {},
+  options: { command?: string; maxTurns?: number; claudeSkipPermissions?: boolean } = {},
 ): AgentRunner {
   if (type === "command") {
     return new CommandAgentRunner(options.command);
   }
 
   if (type === "claude") {
-    return new ClaudeAgentRunner(options.maxTurns);
+    return new ClaudeAgentRunner(options.maxTurns, options.claudeSkipPermissions);
   }
 
   return new DryRunAgentRunner();
@@ -126,7 +126,10 @@ class CommandAgentRunner implements AgentRunner {
 }
 
 class ClaudeAgentRunner implements AgentRunner {
-  constructor(private readonly maxTurns?: number) {}
+  constructor(
+    private readonly maxTurns?: number,
+    private readonly claudeSkipPermissions?: boolean,
+  ) {}
 
   async run(input: AgentRunInput): Promise<AgentRunResult> {
     const startedAt = new Date().toISOString();
@@ -144,6 +147,9 @@ class ClaudeAgentRunner implements AgentRunner {
 
     const maxTurns = input.maxTurns ?? this.maxTurns;
     const args = ["-p", "--output-format", "json"];
+    if (this.claudeSkipPermissions === true) {
+      args.push("--dangerously-skip-permissions");
+    }
     if (maxTurns !== undefined) {
       args.push("--max-turns", String(maxTurns));
     }

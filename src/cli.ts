@@ -87,6 +87,7 @@ program
   .option("--new-run", "start a fresh run even if state exists")
   .option("--timeout-minutes <number>", "agent timeout in minutes", parsePositiveNumber)
   .option("--max-turns <number>", "maximum Claude turns", parsePositiveInteger)
+  .option("--claude-skip-permissions", "bypass Claude permission prompts (only for trusted local/test repos)")
   .action(
     async (
       planPath: string,
@@ -98,6 +99,7 @@ program
         newRun?: boolean;
         timeoutMinutes?: number;
         maxTurns?: number;
+        claudeSkipPermissions?: boolean;
       },
     ) => {
       try {
@@ -119,6 +121,9 @@ program
         }
         if (options.maxTurns !== undefined) {
           orchestrationArgs.maxTurns = options.maxTurns;
+        }
+        if (options.claudeSkipPermissions === true) {
+          orchestrationArgs.claudeSkipPermissions = true;
         }
         await runOrchestration(orchestrationArgs);
       } catch (error) {
