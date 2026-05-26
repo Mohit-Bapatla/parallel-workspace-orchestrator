@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 
+import { dispatchConductorBatch } from "./conductor.js";
 import { runOrchestration } from "./orchestrator.js";
 import { loadPlan, validatePlan } from "./plan.js";
 import { loadState } from "./state.js";
@@ -126,6 +127,45 @@ program
           orchestrationArgs.claudeSkipPermissions = true;
         }
         await runOrchestration(orchestrationArgs);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+      }
+    },
+  );
+
+program
+  .command("conductor:dispatch")
+  .argument("<plan>", "path to an AWO YAML plan")
+  .requiredOption("--repo <repo>", "target repository path")
+  .option("--batch <batchId>", "batch id to dispatch (defaults to first batch)")
+  .option("--submit-key <key>", "AppleScript submit key: enter or cmd-enter", "enter")
+  .option("--delay-ms <number>", "milliseconds to wait between parts", parsePositiveInteger, 2000)
+  .option("--dry-run", "print prompts and URLs without opening Conductor")
+  .action(
+    async (
+      planPath: string,
+      options: {
+        repo: string;
+        batch?: string;
+        submitKey: string;
+        delayMs: number;
+        dryRun?: boolean;
+      },
+    ) => {
+      try {
+        const submitKey = options.submitKey === "cmd-enter" ? "cmd-enter" : "enter";
+        const dispatchArgs: Parameters<typeof dispatchConductorBatch>[0] = {
+          planPath,
+          repoPath: options.repo,
+          submitKey,
+          delayMs: options.delayMs,
+          dryRun: options.dryRun === true,
+        };
+        if (options.batch !== undefined) {
+          dispatchArgs.batchId = options.batch;
+        }
+        await dispatchConductorBatch(dispatchArgs);
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;

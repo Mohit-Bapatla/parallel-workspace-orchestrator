@@ -243,6 +243,50 @@ The current MVP uses process exit code, branch commits ahead of the batch base S
 
 Plan validation warns on same-batch exact file overlap, and strict validation can treat overlaps as errors. Merge-time conflict handling still exists as a backstop. Auto-resolution only happens for explicit safe policies; otherwise the run halts and reports conflicted files.
 
+## Conductor App Dispatch
+
+The `conductor:dispatch` command dispatches prompts into the actual Conductor app using `conductor://` deep links and AppleScript auto-submit.
+
+**Requirements:**
+
+- macOS (this command will fail on other platforms)
+- Conductor installed and `conductor://` links working
+- Terminal or Cursor granted Accessibility permission for AppleScript auto-submit (System Settings → Privacy & Security → Accessibility)
+
+**Behavior:**
+
+This command opens a Conductor workspace prompt for each part in the selected batch. It does not wait for Conductor to finish or merge the resulting changes. The existing raw git orchestrator remains the fully automated wait/merge/resume fallback unless a stable Conductor completion/merge API is available.
+
+**Examples:**
+
+Dispatch batch-1 from a plan:
+
+```bash
+npm run conductor:dispatch -- examples/plan.yaml --repo /Users/loganwoo/parallel-workspace-orchestrator --batch batch-1
+```
+
+If Conductor uses Cmd+Enter to submit:
+
+```bash
+npm run conductor:dispatch -- examples/plan.yaml --repo /Users/loganwoo/parallel-workspace-orchestrator --batch batch-1 --submit-key cmd-enter
+```
+
+Dry run (prints prompts and URLs without opening Conductor):
+
+```bash
+npm run conductor:dispatch -- examples/plan.yaml --repo /Users/loganwoo/parallel-workspace-orchestrator --batch batch-1 --dry-run
+```
+
+**Options:**
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--repo <repo>` | required | Absolute or relative path to target repository |
+| `--batch <batchId>` | first batch | Batch id to dispatch |
+| `--submit-key <enter\|cmd-enter>` | `enter` | AppleScript keystroke used to submit the prompt |
+| `--delay-ms <number>` | `2000` | Milliseconds to wait between parts |
+| `--dry-run` | off | Print prompts and URLs without opening Conductor |
+
 ## Development
 
 ```bash

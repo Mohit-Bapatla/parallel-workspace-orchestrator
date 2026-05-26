@@ -16,6 +16,7 @@
     "demo:status": "tsx src/cli.ts status --repo .demo/sample-repo",
     "demo:command": "tsx scripts/run-command-demo.ts",
     "demo:command:status": "tsx src/cli.ts status --repo .demo/sample-repo",
+    "conductor:dispatch": "tsx src/cli.ts conductor:dispatch",
     "verify": "npm test && npm run build && npm run typecheck && npm run demo && npm run demo:status && npm run demo:command && npm run demo:command:status"
   },
   "keywords": [
