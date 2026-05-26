@@ -13,7 +13,10 @@
     "typecheck": "tsc --noEmit",
     "demo:setup": "tsx scripts/create-sample-repo.ts",
     "demo": "npm run demo:setup && tsx src/cli.ts run examples/plan.yaml --repo .demo/sample-repo --agent dry-run --new-run",
-    "demo:status": "tsx src/cli.ts status --repo .demo/sample-repo"
+    "demo:status": "tsx src/cli.ts status --repo .demo/sample-repo",
+    "demo:command": "tsx scripts/run-command-demo.ts",
+    "demo:command:status": "tsx src/cli.ts status --repo .demo/sample-repo",
+    "verify": "npm test && npm run build && npm run typecheck && npm run demo && npm run demo:status && npm run demo:command && npm run demo:command:status"
   },
   "keywords": [
     "git",

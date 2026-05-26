@@ -40,9 +40,13 @@ AWO turns that process into a resumable CLI flow backed by Git worktrees and dur
 npm install
 npm run demo
 npm run demo:status
+npm run demo:command
+npm run demo:command:status
 ```
 
 `npm run demo` creates `.demo/sample-repo`, initializes it as a Git repo, and runs the example plan in dry-run mode. The dry-run runner writes documentation files, commits them in isolated worktrees, merges them by batch, and runs the sample repo tests after each merge batch.
+
+`npm run demo:command` verifies shell-command agent mode using `examples/fake-agent.mjs`. Neither demo requires Claude Code or Conductor.
 
 ## CLI Usage
 
@@ -81,6 +85,56 @@ Claude mode is available when `claude` is installed and selected explicitly:
 ```bash
 npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude
 ```
+
+## Agent Runners
+
+- `dry-run`: verified end-to-end. It creates deterministic sample changes in each worktree and does not require Claude.
+- `command`: verified end-to-end. It runs an arbitrary shell command or script in each worktree. The command demo uses `examples/fake-agent.mjs` and the `AWO_*` environment variables.
+- `claude`: implemented as an adapter around local `claude -p`. It requires Claude Code to be installed, authenticated, and available on the reviewer's `PATH`.
+
+Claude mode is intentionally optional and was not claimed as locally verified unless a reviewer runs it in an environment with Claude Code available.
+
+## Integration Status
+
+**Verified end-to-end:**
+
+- Dry-run runner.
+- Command runner.
+- Git worktree orchestration.
+- Batched parallel execution.
+- Durable state/resume.
+- Merge/test gating.
+- Status reporting.
+
+**Implemented but environment-dependent:**
+
+- Claude Code runner via local `claude -p`. This requires Claude Code to be installed, authenticated, and available on the reviewer's `PATH`.
+
+**Not directly implemented:**
+
+- Direct Conductor API/CLI integration. This MVP uses raw Git worktrees as the default execution layer because Conductor's workspace model is worktree-based. The workspace and agent layers are modular so a future Conductor adapter can replace raw worktree creation if Conductor exposes a stable scripting interface.
+
+## Requirements Coverage
+
+| Requirement | Status | Notes |
+| --- | --- | --- |
+| YAML plan input | Verified | Parsed with `yaml`, validated with `zod`, and covered by plan tests. |
+| repo path input | Verified | `run`, `status`, and demo commands accept `--repo`. |
+| ordered batches | Verified | Batches execute sequentially in plan order. |
+| parallel parts within batch | Verified | Parts in a batch run with `Promise.all` after isolated worktrees are prepared. |
+| sequential batches | Verified | The next batch starts only after the previous batch merges and post-merge tests pass. |
+| isolated git worktrees | Verified | Each part gets its own branch and worktree outside the target repo. |
+| agent prompt with part slice + full plan | Verified | Prompts include batch/part IDs, title, file scope, brief, context, acceptance criteria, instructions, and full plan text. |
+| dry-run runner | Verified | Covered by tests and `npm run demo`. |
+| command runner | Verified | Covered by tests and `npm run demo:command` using `examples/fake-agent.mjs`. |
+| Claude runner adapter | Implemented / environment-dependent | Uses local `claude -p`; requires Claude Code installed, authenticated, and on `PATH`. |
+| merge/test gating | Verified | Requires commits ahead, supports per-part tests, and runs post-merge tests. |
+| safe conflict handling | Verified | Merge conflicts halt unless every conflicted file matches an explicit auto-resolve policy. |
+| halt/report failures | Verified | Agent, test, no-commit, and merge failures halt with state/log details. |
+| status/watch surface | Verified | `status` renders run metadata plus batch/part/status/branch/log table; `--watch` re-renders. |
+| resumable state | Verified | Durable `.awo/state.json`; completed batches and merged parts are skipped on resume. |
+| Conductor compatibility | Adapter point / not directly implemented | Raw Git worktrees are the default execution layer; a future Conductor adapter can replace workspace creation. |
+| direct Conductor API integration | Adapter point / not directly implemented | No direct Conductor API/CLI calls are made in this MVP. |
 
 ## Plan Format
 
@@ -149,6 +203,7 @@ If a run halts, rerun the same command after fixing the issue. AWO reuses existi
 - Completed but unmerged parts proceed to merge.
 - Failed, test-failed, worktree-created, and running parts are retryable.
 - Worktrees are not deleted by the MVP.
+- Crash recovery is deterministic but conservative: mid-agent parts are retried unless their branch already has commits ahead of the batch base; mid-merge conflict cleanup is left to the user before rerunning.
 
 ## Merge And Test Gating
 
@@ -166,6 +221,20 @@ After all parts in a batch complete, branches merge into the base branch sequent
 - The dry-run runner writes deterministic sample docs; it is for testing the orchestration flow, not for real implementation work.
 - Command-agent mode assumes the provided command knows how to use the `AWO_*` environment variables.
 
+## Open Questions Answered
+
+### Does Conductor expose a stable scripting interface?
+
+This MVP does not assume one. It uses raw Git worktrees as the fallback/default execution layer. The code is structured so a future Conductor adapter can be added around workspace creation if a stable CLI/API exists.
+
+### How should the orchestrator decide an agent is done?
+
+The current MVP uses process exit code, branch commits ahead of the batch base SHA, and optional tests. Agent runners also support a done marker path. A future Claude-specific version could add structured final-message parsing or JSON output validation.
+
+### What about overlapping files in parallel parts?
+
+Plan validation warns on same-batch exact file overlap, and strict validation can treat overlaps as errors. Merge-time conflict handling still exists as a backstop. Auto-resolution only happens for explicit safe policies; otherwise the run halts and reports conflicted files.
+
 ## Development
 
 ```bash
@@ -175,10 +244,28 @@ npm run typecheck
 npm run dev -- validate examples/plan.yaml
 ```
 
+## Final Verification
+
+```bash
+npm test
+npm run build
+npm run typecheck
+npm run demo
+npm run demo:status
+npm run demo:command
+npm run demo:command:status
+npm run verify
+```
+
+`npm run verify` runs the main test, build, typecheck, dry-run demo, and command-runner demo checks. Claude mode remains environment-dependent because it requires a local authenticated Claude Code installation.
+
 Useful demo commands:
 
 ```bash
 npm run demo:setup
 npm run demo
 npm run demo:status
+npm run demo:command
+npm run demo:command:status
+npm run verify
 ```

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type {
@@ -52,7 +52,15 @@ export async function saveState(repoPath: string, state: RunState): Promise<void
 
   try {
     await writeFile(tmpStatePath, stateJson, "utf8");
-    await rename(tmpStatePath, statePath);
+    try {
+      await rename(tmpStatePath, statePath);
+    } catch (error) {
+      if (!isReplaceRetryableError(error)) {
+        throw error;
+      }
+      await rm(statePath, { force: true });
+      await rename(tmpStatePath, statePath);
+    }
   } catch (error) {
     throw new Error(`Unable to save AWO state to ${statePath}: ${errorMessage(error)}`);
   }
@@ -225,6 +233,16 @@ function isNotFoundError(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
+}
+
+function isReplaceRetryableError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    ((error as NodeJS.ErrnoException).code === "EPERM" ||
+      (error as NodeJS.ErrnoException).code === "EEXIST")
   );
 }
 
