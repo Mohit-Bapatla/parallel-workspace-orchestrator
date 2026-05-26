@@ -2,6 +2,34 @@ export type AgentType = "dry-run" | "command" | "claude";
 export type MergeStrategy = "no-ff" | "squash";
 export type AutoResolveChoice = "ours" | "theirs";
 
+export interface PlanPart {
+  id: string;
+  title?: string;
+  files?: string[];
+  brief: string;
+  context?: string;
+  acceptance?: string[];
+}
+
+export interface PlanBatch {
+  id: string;
+  parts: PlanPart[];
+}
+
+export interface AutoResolvePolicy {
+  pattern: string;
+  choose: AutoResolveChoice;
+}
+
+export interface MergeResult {
+  ok: boolean;
+  conflictedFiles: string[];
+  merged: boolean;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+}
+
 export interface Plan {
   version: number;
   name?: string;
@@ -18,22 +46,9 @@ export interface Plan {
   };
   merge: {
     strategy: MergeStrategy;
-    auto_resolve?: Array<{
-      pattern: string;
-      choose: AutoResolveChoice;
-    }>;
+    auto_resolve?: AutoResolvePolicy[];
   };
-  batches: Array<{
-    id: string;
-    parts: Array<{
-      id: string;
-      title?: string;
-      files?: string[];
-      brief: string;
-      context?: string;
-      acceptance?: string[];
-    }>;
-  }>;
+  batches: PlanBatch[];
 }
 
 export interface LoadedPlan {
