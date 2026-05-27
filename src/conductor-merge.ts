@@ -403,15 +403,16 @@ async function findCandidate(
   const safePartId = sanitizeId(part.id);
   const marker = await findMarker(part, worktrees);
   const markerWorktree = marker?.worktree;
+  const markerBranch = markerWorktree?.branch;
 
   const candidateBranches = [
     `conductor/${safePartId}`,
     ...branches.filter((branch) => branch.endsWith(`/${safePartId}`)),
     ...branches.filter((branch) => branch.toLowerCase().includes(safePartId)),
   ];
-  const branch = unique(candidateBranches).find((candidate) => branches.includes(candidate));
-  const worktree = markerWorktree ?? worktrees.find((candidate) => candidate.branch === branch);
-  const selectedBranch = branch ?? worktree?.branch;
+  const fallbackBranch = unique(candidateBranches).find((candidate) => branches.includes(candidate));
+  const selectedBranch = markerBranch ?? fallbackBranch;
+  const worktree = markerWorktree ?? worktrees.find((candidate) => candidate.branch === selectedBranch);
 
   if (selectedBranch !== undefined && selectedBranch !== baseBranch && await branchExists(repoPath, selectedBranch)) {
     return {

@@ -45,6 +45,28 @@ describe("conductor merge watcher", () => {
     expect(alpha.status).toBe("running");
   }, 30_000);
 
+  it("detects ready markers in worktrees whose branch names do not include the part id", async () => {
+    const fixture = await makeFixture();
+    const branch = "conductor/workspace-7429";
+    const worktreeName = "workspace-7429";
+    await createCompletedPart(fixture, "alpha", { branch, worktreeName });
+
+    await runConductorMergeWatch({
+      planPath: fixture.planPath,
+      repoPath: fixture.repoPath,
+      batchId: "batch-1",
+      once: true,
+      humanGate: false,
+    });
+
+    const state = await readMergeState(fixture.repoPath);
+    const alpha = findPart(state, "batch-1", "alpha");
+    expect(alpha.status).toBe("ready");
+    expect(alpha.branch).toBe(branch);
+    expect(path.normalize(alpha.worktreePath)).toBe(path.join(fixture.worktreeRoot, worktreeName));
+    expect(path.normalize(alpha.markerPath)).toBe(path.join(fixture.worktreeRoot, worktreeName, ".awo", "completed", "alpha.json"));
+  }, 30_000);
+
   it("does not merge blocked marker branches", async () => {
     const fixture = await makeFixture();
     await createCompletedPart(fixture, "alpha", { markerStatus: "blocked" });
@@ -136,10 +158,10 @@ async function makeFixture(): Promise<Fixture> {
 async function createCompletedPart(
   fixture: Fixture,
   partId: "alpha" | "beta",
-  options: { markerStatus?: "ready_for_merge" | "blocked" | "none" } = {},
+  options: { branch?: string; markerStatus?: "ready_for_merge" | "blocked" | "none"; worktreeName?: string } = {},
 ): Promise<void> {
-  const branch = `conductor/${partId}`;
-  const worktreePath = path.join(fixture.worktreeRoot, partId);
+  const branch = options.branch ?? `conductor/${partId}`;
+  const worktreePath = path.join(fixture.worktreeRoot, options.worktreeName ?? partId);
   await createWorktree({ repoPath: fixture.repoPath, worktreePath, branch, baseRef: "main" });
   const docsDir = path.join(worktreePath, "docs", "generated");
   await mkdir(docsDir, { recursive: true });
