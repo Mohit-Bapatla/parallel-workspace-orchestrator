@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 
+import { runConductorMergeWatch } from "./conductor-merge.js";
 import { dispatchConductorBatch } from "./conductor.js";
 import { runOrchestration } from "./orchestrator.js";
 import { loadPlan, validatePlan } from "./plan.js";
@@ -166,6 +167,62 @@ program
           dispatchArgs.batchId = options.batch;
         }
         await dispatchConductorBatch(dispatchArgs);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+      }
+    },
+  );
+
+program
+  .command("conductor:merge-watch")
+  .argument("<plan>", "path to an AWO YAML plan")
+  .requiredOption("--repo <repo>", "target repository path")
+  .option("--interval-ms <number>", "poll interval in milliseconds", parsePositiveInteger, 30_000)
+  .option("--once", "run exactly one watcher cycle")
+  .option("--batch <batchId>", "batch id to watch")
+  .option("--human-gate", "keep human review gate enabled", true)
+  .option("--auto-merge", "merge ready branches")
+  .option("--push", "push base branch after successful merge and tests")
+  .option("--remote <remote>", "remote to push to", "origin")
+  .option("--base-branch <branch>", "override plan base branch")
+  .option("--post-merge-test <command>", "override post-merge test command")
+  .option("--max-cycles <number>", "maximum polling cycles", parsePositiveInteger)
+  .option("--dry-run", "print actions without merging or pushing")
+  .action(
+    async (
+      planPath: string,
+      options: {
+        repo: string;
+        intervalMs: number;
+        once?: boolean;
+        batch?: string;
+        humanGate: boolean;
+        autoMerge?: boolean;
+        push?: boolean;
+        remote: string;
+        baseBranch?: string;
+        postMergeTest?: string;
+        maxCycles?: number;
+        dryRun?: boolean;
+      },
+    ) => {
+      try {
+        await runConductorMergeWatch({
+          planPath,
+          repoPath: options.repo,
+          intervalMs: options.intervalMs,
+          once: options.once === true,
+          ...(options.batch === undefined ? {} : { batchId: options.batch }),
+          humanGate: options.humanGate,
+          autoMerge: options.autoMerge === true,
+          push: options.push === true,
+          remote: options.remote,
+          ...(options.baseBranch === undefined ? {} : { baseBranch: options.baseBranch }),
+          ...(options.postMergeTest === undefined ? {} : { postMergeTest: options.postMergeTest }),
+          ...(options.maxCycles === undefined ? {} : { maxCycles: options.maxCycles }),
+          dryRun: options.dryRun === true,
+        });
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;

@@ -37,6 +37,68 @@ export async function branchExists(repoPath: string, branch: string): Promise<bo
   return result.exitCode === 0;
 }
 
+export async function listBranches(repoPath: string): Promise<string[]> {
+  const result = await git(repoPath, ["branch", "--format=%(refname:short)"], "Unable to list branches");
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+export interface GitWorktreeInfo {
+  path: string;
+  branch?: string;
+  head?: string;
+}
+
+export async function listWorktrees(repoPath: string): Promise<GitWorktreeInfo[]> {
+  const result = await git(repoPath, ["worktree", "list", "--porcelain"], "Unable to list worktrees");
+  const worktrees: GitWorktreeInfo[] = [];
+  let current: Partial<GitWorktreeInfo> = {};
+
+  for (const line of result.stdout.split(/\r?\n/)) {
+    if (line.trim().length === 0) {
+      if (current.path !== undefined) {
+        worktrees.push(toWorktreeInfo(current));
+      }
+      current = {};
+      continue;
+    }
+
+    const [key, ...rest] = line.split(" ");
+    const value = rest.join(" ");
+    if (key === "worktree") {
+      current.path = value;
+    } else if (key === "HEAD") {
+      current.head = value;
+    } else if (key === "branch") {
+      current.branch = value.replace(/^refs\/heads\//, "");
+    }
+  }
+
+  if (current.path !== undefined) {
+    worktrees.push(toWorktreeInfo(current));
+  }
+
+  return worktrees;
+}
+
+export async function isBranchMerged(
+  repoPath: string,
+  baseBranch: string,
+  branch: string,
+): Promise<boolean> {
+  const result = await execa("git", ["merge-base", "--is-ancestor", branch, baseBranch], {
+    cwd: repoPath,
+    reject: false,
+  });
+  return result.exitCode === 0;
+}
+
+export async function gitPush(repoPath: string, remote: string, baseBranch: string): Promise<void> {
+  await git(repoPath, ["push", remote, baseBranch], `Unable to push ${baseBranch} to ${remote}`);
+}
+
 export async function createWorktree(args: {
   repoPath: string;
   worktreePath: string;
@@ -60,6 +122,20 @@ export async function createWorktree(args: {
     : ["worktree", "add", "-b", args.branch, args.worktreePath, args.baseRef];
 
   await git(args.repoPath, gitArgs, `Unable to create Git worktree at ${args.worktreePath}`);
+}
+
+function toWorktreeInfo(value: Partial<GitWorktreeInfo>): GitWorktreeInfo {
+  if (value.path === undefined) {
+    throw new Error("Invalid Git worktree entry without a path.");
+  }
+  const info: GitWorktreeInfo = { path: value.path };
+  if (value.branch !== undefined) {
+    info.branch = value.branch;
+  }
+  if (value.head !== undefined) {
+    info.head = value.head;
+  }
+  return info;
 }
 
 export async function hasCommitsAhead(

@@ -52,6 +52,7 @@ Important provider wording:
 10. If the user says Conductor sends with Cmd+Enter, run:
    `npm run conductor:dispatch -- <planPath> --repo <repoPath> --batch <batchId> --submit-key cmd-enter`
 11. After dispatch, produce a runbook/checklist for review, testing, debugging, merging, and the next batch.
+12. Explain the merge watcher commands for human-gated status, cron-style polling, approved auto-merge, and approved auto-merge plus push.
 
 ## Plan YAML template
 
@@ -100,6 +101,34 @@ Dry run:
 npm run conductor:dispatch -- .awo/plans/conductor-dispatch-YYYYMMDD-HHMMSS.yaml --repo /absolute/path/to/repo --batch batch-1 --dry-run
 ```
 
+## Merge watcher command examples
+
+Human-gated status:
+
+```bash
+npm run conductor:merge-watch -- .awo/plans/conductor-dispatch-YYYYMMDD-HHMMSS.yaml --repo /absolute/path/to/repo --batch batch-1 --once
+```
+
+Cron-style polling:
+
+```bash
+npm run conductor:merge-watch -- .awo/plans/conductor-dispatch-YYYYMMDD-HHMMSS.yaml --repo /absolute/path/to/repo --interval-ms 30000
+```
+
+Automatic merge after human approval:
+
+```bash
+npm run conductor:merge-watch -- .awo/plans/conductor-dispatch-YYYYMMDD-HHMMSS.yaml --repo /absolute/path/to/repo --batch batch-1 --auto-merge --once
+```
+
+Automatic merge and push after human approval:
+
+```bash
+npm run conductor:merge-watch -- .awo/plans/conductor-dispatch-YYYYMMDD-HHMMSS.yaml --repo /absolute/path/to/repo --batch batch-1 --auto-merge --push --once
+```
+
+Review Conductor diffs first, run tests/checks, then use `--auto-merge` only after the human approves the branches. Use `--push` only after reviewing and confirming merge readiness.
+
 ## Conductor provider/model selection
 
 This repo dispatches prompts into Conductor workspaces. It does not force the app to use Claude vs Codex. Before dispatch, manually choose Claude Code or Codex in Conductor's model/provider picker.
@@ -113,7 +142,7 @@ The skill should remind the user to make that selection before dispatch.
 - Run tests/checks in each workspace.
 - Ask the workspace agent to fix failures.
 - Human verifies behavior.
-- Merge approved branches.
+- Run `conductor:merge-watch --auto-merge --once` to merge approved ready branches.
 - Only after merge, dispatch the next dependent batch.
 - If conflicts appear, resolve and retest before continuing.
 

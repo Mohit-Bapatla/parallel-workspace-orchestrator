@@ -121,7 +121,10 @@ describe("buildConductorPrompt", () => {
     expect(prompt).toContain("Do not just explain.");
     expect(prompt).toContain("Keep changes scoped to this part.");
     expect(prompt).toContain("This workspace should be independent from sibling workspaces.");
-    expect(prompt).toContain("When done, leave the workspace ready for review/merge.");
+    expect(prompt).toContain("Do not merge this workspace yourself.");
+    expect(prompt).toContain("write `.awo/completed/<part-id>.json` with status `ready_for_merge`");
+    expect(prompt).toContain("write `.awo/completed/<part-id>.json` with status `blocked`");
+    expect(prompt).toContain("Leave the workspace ready for human review and merge.");
   });
 });
 

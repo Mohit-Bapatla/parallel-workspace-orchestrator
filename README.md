@@ -33,6 +33,7 @@ AWO turns that process into a resumable CLI flow backed by Git worktrees and dur
 - Merge and test gating.
 - Conservative conflict handling.
 - `status` command and watch mode.
+- Conductor app dispatch plus a Git-backed Conductor merge watcher.
 
 ## Quick Start
 
@@ -86,7 +87,6 @@ Claude mode is available when `claude` is installed and selected explicitly:
 npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude
 ```
 
-<<<<<<< HEAD
 For local testing against a trusted repository, you can bypass Claude's interactive permission prompts:
 
 ```bash
@@ -94,7 +94,7 @@ npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude --claud
 ```
 
 > **Warning:** `--claude-skip-permissions` passes `--dangerously-skip-permissions` to `claude`. Only use this on repos you own and trust. Never use it against unknown or shared codebases.
-=======
+
 Dispatch one batch into Conductor workspaces:
 
 ```bash
@@ -106,7 +106,18 @@ Preview the Conductor prompts without opening the app:
 ```bash
 npm run conductor:dispatch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --dry-run
 ```
->>>>>>> b7a9e9b (add Claude Code conductor dispatch skill)
+
+Watch Conductor-backed worktree branches once without merging:
+
+```bash
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --once
+```
+
+After human review, merge ready branches:
+
+```bash
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --auto-merge --once
+```
 
 ## Agent Runners
 
@@ -127,6 +138,7 @@ Claude mode is intentionally optional and was not claimed as locally verified un
 - Durable state/resume.
 - Merge/test gating.
 - Status reporting.
+- Git-backed Conductor merge watcher.
 
 **Implemented but environment-dependent:**
 
@@ -134,7 +146,7 @@ Claude mode is intentionally optional and was not claimed as locally verified un
 
 **Not directly implemented:**
 
-- Direct Conductor API/CLI integration. This MVP uses raw Git worktrees as the default execution layer because Conductor's workspace model is worktree-based. The workspace and agent layers are modular so a future Conductor adapter can replace raw worktree creation if Conductor exposes a stable scripting interface.
+- Native Conductor merge API/provider integration. This MVP uses raw Git worktrees and Git-backed Conductor workspace branches as the default execution layer. The workspace and agent layers are modular so a future Conductor adapter can replace raw worktree creation or merge watching if Conductor exposes a stable scripting interface.
 
 ## Claude Code Slash Command / Skill
 
@@ -189,8 +201,12 @@ If Conductor later exposes provider selection in deep links or a stable API, it 
 | halt/report failures | Verified | Agent, test, no-commit, and merge failures halt with state/log details. |
 | status/watch surface | Verified | `status` renders run metadata plus batch/part/status/branch/log table; `--watch` re-renders. |
 | resumable state | Verified | Durable `.awo/state.json`; completed batches and merged parts are skipped on resume. |
-| Conductor compatibility | Adapter point / not directly implemented | Raw Git worktrees are the default execution layer; a future Conductor adapter can replace workspace creation. |
-| direct Conductor API integration | Adapter point / not directly implemented | No direct Conductor API/CLI calls are made in this MVP. |
+| Conductor compatibility | Verified | Dispatch uses `conductor://` deep links, and the merge watcher monitors Git-backed Conductor workspace branches/worktrees. |
+| Cron-style merge watcher | Verified | `conductor:merge-watch` can run once or poll continuously with `--interval-ms`. |
+| Fully automated Conductor wait/merge loop | Implemented / environment-dependent | Implemented through Git branch/worktree state, completion markers, tests, and merge policies rather than a private Conductor API. |
+| Git push after merge | Verified | Opt-in with `conductor:merge-watch --push`; dry-run prints the push command without executing it. |
+| Native Conductor merge API | Adapter point / not directly implemented | The watcher does not click Conductor's native Merge button or assume a private Conductor API. |
+| direct Conductor API integration | Adapter point / not directly implemented | No provider forcing or native Conductor API integration is claimed. |
 
 ## Plan Format
 
@@ -297,13 +313,15 @@ The `conductor:dispatch` command dispatches prompts into the actual Conductor ap
 
 **Requirements:**
 
-- macOS (this command will fail on other platforms)
+- macOS for live dispatch. `--dry-run` works on other platforms.
 - Conductor installed and `conductor://` links working
-- Terminal or Cursor granted Accessibility permission for AppleScript auto-submit (System Settings → Privacy & Security → Accessibility)
+- Terminal or Cursor granted Accessibility permission for AppleScript auto-submit (System Settings -> Privacy & Security -> Accessibility)
 
 **Behavior:**
 
 This command opens a Conductor workspace prompt for each part in the selected batch. It does not wait for Conductor to finish or merge the resulting changes. The existing raw git orchestrator remains the fully automated wait/merge/resume fallback unless a stable Conductor completion/merge API is available.
+
+Each dispatched prompt asks the workspace agent to keep changes scoped, avoid merging, run relevant tests when possible, and write `.awo/completed/<part-id>.json` with either `ready_for_merge` or `blocked`. The merge watcher uses that marker as a review signal.
 
 **Examples:**
 
@@ -335,6 +353,54 @@ npm run conductor:dispatch -- examples/plan.yaml --repo /Users/loganwoo/parallel
 | `--delay-ms <number>` | `2000` | Milliseconds to wait between parts |
 | `--dry-run` | off | Print prompts and URLs without opening Conductor |
 
+## Conductor Merge Watcher
+
+`conductor:dispatch` starts Conductor workspaces. `conductor:merge-watch` monitors the Git-backed branches and worktrees those workspaces use. It checks completion markers, commits ahead of the base branch, optional tests, merge readiness, and merge policy results.
+
+The watcher does not depend on a private Conductor API and does not click Conductor's native Merge button. It uses Git because Conductor workspaces are branch/worktree backed.
+
+By default the watcher keeps a human gate: it reports ready branches, marker summaries, and review instructions without merging. After reviewing Conductor diffs and tests, rerun with `--auto-merge` to merge ready branches sequentially into the base branch.
+
+Run one human-gated status cycle:
+
+```bash
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --once
+```
+
+Poll continuously like a cron loop:
+
+```bash
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --interval-ms 30000
+```
+
+Merge ready branches after human approval:
+
+```bash
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --auto-merge --once
+```
+
+Merge and push after successful tests:
+
+```bash
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --auto-merge --push --once
+```
+
+Useful options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--repo <repo>` | required | Target repository path |
+| `--batch <batchId>` | first incomplete batch | Batch to watch |
+| `--once` | off | Run one cycle and exit |
+| `--interval-ms <number>` | `30000` | Poll interval for continuous mode |
+| `--auto-merge` | off | Merge ready branches after human approval |
+| `--push` | off | Push base branch after successful merge and tests |
+| `--remote <remote>` | `origin` | Remote used by `--push` |
+| `--post-merge-test <command>` | plan setting | Override post-merge test command |
+| `--dry-run` | off | Print merge/test/push actions without changing Git state |
+
+When a batch completes, continuous mode prints the next batch's dispatch command. It does not automatically dispatch the next batch.
+
 ## Development
 
 ```bash
@@ -342,6 +408,8 @@ npm test
 npm run build
 npm run typecheck
 npm run dev -- validate examples/plan.yaml
+npm run conductor:dispatch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --dry-run
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --once --dry-run
 ```
 
 ## Final Verification
@@ -354,6 +422,8 @@ npm run demo
 npm run demo:status
 npm run demo:command
 npm run demo:command:status
+npm run conductor:dispatch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --dry-run
+npm run conductor:merge-watch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --once --dry-run
 npm run verify
 ```
 
