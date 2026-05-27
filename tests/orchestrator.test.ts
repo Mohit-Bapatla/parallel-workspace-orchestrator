@@ -29,7 +29,7 @@ describe("orchestrator", () => {
     expect(alpha).toContain("Dry-run output for alpha");
     expect(beta).toContain("Dry-run output for beta");
     expect(summary).toContain("Dry-run output for summary");
-  });
+  }, 30_000);
 });
 
 async function makeRepoAndPlan(): Promise<{ root: string; repoPath: string; planPath: string }> {

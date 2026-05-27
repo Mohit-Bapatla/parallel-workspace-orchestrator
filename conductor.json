@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "setup": "npm install",
+    "run": "npm run verify",
+    "archive": ""
+  },
+  "runScriptMode": "nonconcurrent"
+}

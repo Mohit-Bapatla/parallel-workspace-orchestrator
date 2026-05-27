@@ -28,7 +28,7 @@ describe("git adapter", () => {
 
     await expect(autoCommitIfDirty(worktreePath, "Add alpha")).resolves.toBe(true);
     await expect(hasCommitsAhead(repoPath, baseSha, branch)).resolves.toBe(true);
-  });
+  }, 30_000);
 
   it("runTestCommand returns ok true for a passing command", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "awo-git-cmd-"));

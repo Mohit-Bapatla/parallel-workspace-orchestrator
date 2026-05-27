@@ -86,6 +86,7 @@ Claude mode is available when `claude` is installed and selected explicitly:
 npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude
 ```
 
+<<<<<<< HEAD
 For local testing against a trusted repository, you can bypass Claude's interactive permission prompts:
 
 ```bash
@@ -93,6 +94,19 @@ npm run dev -- run examples/plan.yaml --repo path/to/repo --agent claude --claud
 ```
 
 > **Warning:** `--claude-skip-permissions` passes `--dangerously-skip-permissions` to `claude`. Only use this on repos you own and trust. Never use it against unknown or shared codebases.
+=======
+Dispatch one batch into Conductor workspaces:
+
+```bash
+npm run conductor:dispatch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1
+```
+
+Preview the Conductor prompts without opening the app:
+
+```bash
+npm run conductor:dispatch -- examples/plan.yaml --repo /absolute/path/to/repo --batch batch-1 --dry-run
+```
+>>>>>>> b7a9e9b (add Claude Code conductor dispatch skill)
 
 ## Agent Runners
 
@@ -121,6 +135,40 @@ Claude mode is intentionally optional and was not claimed as locally verified un
 **Not directly implemented:**
 
 - Direct Conductor API/CLI integration. This MVP uses raw Git worktrees as the default execution layer because Conductor's workspace model is worktree-based. The workspace and agent layers are modular so a future Conductor adapter can replace raw worktree creation if Conductor exposes a stable scripting interface.
+
+## Claude Code Slash Command / Skill
+
+Inside Claude Code, invoke:
+
+```text
+/conductor-dispatch
+```
+
+The slash command points Claude to `.claude/skills/conductor-dispatch/SKILL.md`. That skill helps turn a grand spec into a reviewed batched AWO plan, writes the approved plan to `.awo/plans`, dispatches an approved batch to Conductor workspaces, and produces a review/test/merge runbook.
+
+The workflow keeps a human in the loop before dispatch and before merge. It uses the existing `npm run conductor:dispatch` command so the user does not have to manually type every terminal command.
+
+If `.awo/plans` does not exist yet, create it before writing the approved plan.
+
+## Conductor Setup
+
+- Open this repo in Conductor.
+- Let `conductor.json` run setup with `npm install` and run verification with `npm run verify`.
+- Make sure `conductor://` links open Conductor on your machine.
+- If auto-submit is blocked on macOS, enable Accessibility permission for Terminal/Cursor.
+- Choose Claude Code or Codex manually in Conductor's model/provider picker before dispatch.
+- This project does not force provider selection through deep links.
+- `npm run conductor:dispatch` can preview prompts with `--dry-run`; without `--dry-run`, it opens Conductor deep links for the selected batch.
+
+## Claude vs Codex
+
+Conductor supports Claude Code and Codex workspaces. AWO's dispatcher opens/submits prompts into Conductor; actual provider/model selection is controlled by Conductor's app/model picker.
+
+If you want Codex workspaces, select Codex in Conductor before running `/conductor-dispatch` or `npm run conductor:dispatch`.
+
+If you want Claude Code workspaces, select Claude Code in Conductor before dispatch.
+
+If Conductor later exposes provider selection in deep links or a stable API, it can be wired into the dispatch layer. This repo does not currently claim to force Claude or Codex provider selection.
 
 ## Requirements Coverage
 
@@ -223,7 +271,7 @@ After all parts in a batch complete, branches merge into the base branch sequent
 
 - This is a local CLI MVP, not a hosted service.
 - Claude Code support is adapter-level and optional.
-- There is no direct Conductor integration.
+- There is no direct Conductor API/CLI integration; Conductor dispatch uses deep links and keeps provider selection manual.
 - Worktree cleanup is left to the user for now.
 - Conflict recovery is intentionally conservative.
 - The dry-run runner writes deterministic sample docs; it is for testing the orchestration flow, not for real implementation work.
