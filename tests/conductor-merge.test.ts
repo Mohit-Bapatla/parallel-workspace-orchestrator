@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execa } from "execa";
@@ -63,8 +64,12 @@ describe("conductor merge watcher", () => {
     const alpha = findPart(state, "batch-1", "alpha");
     expect(alpha.status).toBe("ready");
     expect(alpha.branch).toBe(branch);
-    expect(path.normalize(alpha.worktreePath)).toBe(path.join(fixture.worktreeRoot, worktreeName));
-    expect(path.normalize(alpha.markerPath)).toBe(path.join(fixture.worktreeRoot, worktreeName, ".awo", "completed", "alpha.json"));
+    const actualWorktreeReal = await fs.realpath(alpha.worktreePath);
+    const expectedWorktreeReal = await fs.realpath(path.join(fixture.worktreeRoot, worktreeName));
+    expect(actualWorktreeReal).toBe(expectedWorktreeReal);
+    const actualMarkerReal = await fs.realpath(alpha.markerPath);
+    const expectedMarkerReal = await fs.realpath(path.join(fixture.worktreeRoot, worktreeName, ".awo", "completed", "alpha.json"));
+    expect(actualMarkerReal).toBe(expectedMarkerReal);
   }, 30_000);
 
   it("does not merge blocked marker branches", async () => {
