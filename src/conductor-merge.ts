@@ -1,5 +1,7 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
+import { execa } from "execa";
 
 import {
   branchExists,
@@ -78,6 +80,7 @@ export interface ConductorMergeWatchArgs {
   remote?: string;
   baseBranch?: string;
   postMergeTest?: string;
+  conductorWorkspacesRoot?: string;
   maxCycles?: number;
   dryRun?: boolean;
 }
@@ -102,6 +105,7 @@ interface CycleContext {
   push: boolean;
   remote: string;
   postMergeTest?: string;
+  conductorWorkspacesRoot?: string;
   dryRun: boolean;
 }
 
@@ -144,6 +148,7 @@ export async function runConductorMergeWatch(args: ConductorMergeWatchArgs): Pro
       push: args.push === true,
       remote: args.remote ?? "origin",
       ...(args.postMergeTest === undefined ? {} : { postMergeTest: args.postMergeTest }),
+      ...(args.conductorWorkspacesRoot === undefined ? {} : { conductorWorkspacesRoot: args.conductorWorkspacesRoot }),
       dryRun: args.dryRun === true,
     });
 
@@ -157,7 +162,7 @@ export async function runConductorMergeWatch(args: ConductorMergeWatchArgs): Pro
 
 export async function runMergeWatchCycle(context: CycleContext): Promise<ConductorMergeState> {
   const branches = await listBranches(context.repoPath);
-  const worktrees = await listWorktrees(context.repoPath);
+  const worktrees = await listMarkerWorkspaces(context.repoPath, context.conductorWorkspacesRoot);
   const batchState = getBatchState(context.state, context.batch);
   const now = new Date().toISOString();
   context.state.lastCheckedAt = now;
@@ -451,6 +456,87 @@ async function findMarker(
   return null;
 }
 
+async function listMarkerWorkspaces(
+  repoPath: string,
+  conductorWorkspacesRoot: string | undefined,
+): Promise<GitWorktreeInfo[]> {
+  const worktrees = await listWorktrees(repoPath);
+  const externalWorkspaces = await listExternalConductorWorkspaces(conductorWorkspacesRoot);
+  return uniqueWorktrees([...worktrees, ...externalWorkspaces]);
+}
+
+async function listExternalConductorWorkspaces(conductorWorkspacesRoot: string | undefined): Promise<GitWorktreeInfo[]> {
+  const roots = await getConductorWorkspaceRoots(conductorWorkspacesRoot);
+  const workspaces: GitWorktreeInfo[] = [];
+
+  for (const root of roots) {
+    for (const workspacePath of await listWorkspacePaths(root)) {
+      const branch = await readWorkspaceBranch(workspacePath);
+      workspaces.push({
+        path: workspacePath,
+        ...(branch === undefined ? {} : { branch }),
+      });
+    }
+  }
+
+  return workspaces;
+}
+
+async function getConductorWorkspaceRoots(conductorWorkspacesRoot: string | undefined): Promise<string[]> {
+  const roots = conductorWorkspacesRoot === undefined ? [] : [resolveUserPath(conductorWorkspacesRoot)];
+  const defaultRoot = path.join(homedir(), "conductor", "workspaces");
+  if (await pathExists(defaultRoot)) {
+    roots.push(defaultRoot);
+  }
+  return unique(roots.map((root) => path.resolve(root)));
+}
+
+async function listWorkspacePaths(root: string): Promise<string[]> {
+  if (!await pathExists(root)) {
+    return [];
+  }
+
+  const rootPaths = [root];
+  const entries = await readdir(root, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      rootPaths.push(path.join(root, entry.name));
+    }
+  }
+  return rootPaths;
+}
+
+async function readWorkspaceBranch(workspacePath: string): Promise<string | undefined> {
+  const result = await execa("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: workspacePath,
+    reject: false,
+  });
+  const branch = result.stdout.trim();
+  if (result.exitCode !== 0 || branch.length === 0 || branch === "HEAD") {
+    return undefined;
+  }
+  return branch;
+}
+
+async function pathExists(candidatePath: string): Promise<boolean> {
+  try {
+    await stat(candidatePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveUserPath(value: string): string {
+  if (value === "~") {
+    return homedir();
+  }
+  if (value.startsWith("~/")) {
+    return path.join(homedir(), value.slice(2));
+  }
+  return value;
+}
+
 function applyCandidateToState(partState: ConductorMergePartState, candidate: BranchCandidate): void {
   if (candidate.branch !== undefined) {
     partState.branch = candidate.branch;
@@ -595,6 +681,20 @@ function sanitizeId(id: string): string {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function uniqueWorktrees(worktrees: GitWorktreeInfo[]): GitWorktreeInfo[] {
+  const seen = new Set<string>();
+  const uniqueValues: GitWorktreeInfo[] = [];
+  for (const worktree of worktrees) {
+    const key = path.resolve(worktree.path);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    uniqueValues.push(worktree);
+  }
+  return uniqueValues;
 }
 
 function setOptionalString<T extends { [K in P]?: string }, P extends keyof T>(

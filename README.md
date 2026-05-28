@@ -359,6 +359,8 @@ npm run conductor:dispatch -- examples/plan.yaml --repo /Users/loganwoo/parallel
 
 The watcher does not depend on a private Conductor API and does not click Conductor's native Merge button. It uses Git because Conductor workspaces are branch/worktree backed.
 
+The watcher scans Git worktrees plus external Conductor workspace markers under `~/conductor/workspaces` when that directory exists. Use `--conductor-workspaces-root` to add another workspace root.
+
 By default the watcher keeps a human gate: it reports ready branches, marker summaries, and review instructions without merging. After reviewing Conductor diffs and tests, rerun with `--auto-merge` to merge ready branches sequentially into the base branch.
 
 Run one human-gated status cycle:
@@ -397,6 +399,7 @@ Useful options:
 | `--push` | off | Push base branch after successful merge and tests |
 | `--remote <remote>` | `origin` | Remote used by `--push` |
 | `--post-merge-test <command>` | plan setting | Override post-merge test command |
+| `--conductor-workspaces-root <path>` | `~/conductor/workspaces` if present | Additional Conductor workspace root to scan for completion markers |
 | `--dry-run` | off | Print merge/test/push actions without changing Git state |
 
 When a batch completes, continuous mode prints the next batch's dispatch command. It does not automatically dispatch the next batch.

@@ -72,6 +72,51 @@ describe("conductor merge watcher", () => {
     expect(actualMarkerReal).toBe(expectedMarkerReal);
   }, 30_000);
 
+  it("detects ready markers in an external Conductor workspaces root", async () => {
+    const fixture = await makeFixture();
+    const branch = "conductor/workspace-7429";
+    await createCompletedPart(fixture, "alpha", { branch, markerStatus: "none" });
+    const conductorWorkspacesRoot = path.join(fixture.root, "conductor", "workspaces");
+    const workspacePath = path.join(conductorWorkspacesRoot, "workspace-7429");
+    await mkdir(workspacePath, { recursive: true });
+    await execa("git", ["init", "-b", branch], { cwd: workspacePath });
+    await execa("git", ["config", "user.email", "test@example.local"], { cwd: workspacePath });
+    await execa("git", ["config", "user.name", "Test User"], { cwd: workspacePath });
+    await writeFile(path.join(workspacePath, "README.md"), "# External workspace\n", "utf8");
+    await execa("git", ["add", "README.md"], { cwd: workspacePath });
+    await execa("git", ["commit", "-m", "Initial external workspace commit"], { cwd: workspacePath });
+    const markerDir = path.join(workspacePath, ".awo", "completed");
+    await mkdir(markerDir, { recursive: true });
+    await writeFile(path.join(markerDir, "alpha.json"), JSON.stringify({
+      partId: "alpha",
+      batchId: "batch-1",
+      status: "ready_for_merge",
+      summary: "alpha ready_for_merge",
+      testsRun: [],
+      notes: "Ready.",
+    }, null, 2), "utf8");
+
+    await runConductorMergeWatch({
+      planPath: fixture.planPath,
+      repoPath: fixture.repoPath,
+      batchId: "batch-1",
+      once: true,
+      humanGate: false,
+      conductorWorkspacesRoot,
+    });
+
+    const state = await readMergeState(fixture.repoPath);
+    const alpha = findPart(state, "batch-1", "alpha");
+    expect(alpha.status).toBe("ready");
+    expect(alpha.branch).toBe(branch);
+    const actualWorktreeReal = await fs.realpath(alpha.worktreePath);
+    const expectedWorktreeReal = await fs.realpath(workspacePath);
+    expect(actualWorktreeReal).toBe(expectedWorktreeReal);
+    const actualMarkerReal = await fs.realpath(alpha.markerPath);
+    const expectedMarkerReal = await fs.realpath(path.join(workspacePath, ".awo", "completed", "alpha.json"));
+    expect(actualMarkerReal).toBe(expectedMarkerReal);
+  }, 30_000);
+
   it("does not merge blocked marker branches", async () => {
     const fixture = await makeFixture();
     await createCompletedPart(fixture, "alpha", { markerStatus: "blocked" });

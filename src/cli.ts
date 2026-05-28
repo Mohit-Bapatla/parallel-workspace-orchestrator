@@ -187,6 +187,7 @@ program
   .option("--remote <remote>", "remote to push to", "origin")
   .option("--base-branch <branch>", "override plan base branch")
   .option("--post-merge-test <command>", "override post-merge test command")
+  .option("--conductor-workspaces-root <path>", "Conductor workspaces root to scan for completion markers")
   .option("--max-cycles <number>", "maximum polling cycles", parsePositiveInteger)
   .option("--dry-run", "print actions without merging or pushing")
   .action(
@@ -203,6 +204,7 @@ program
         remote: string;
         baseBranch?: string;
         postMergeTest?: string;
+        conductorWorkspacesRoot?: string;
         maxCycles?: number;
         dryRun?: boolean;
       },
@@ -220,6 +222,7 @@ program
           remote: options.remote,
           ...(options.baseBranch === undefined ? {} : { baseBranch: options.baseBranch }),
           ...(options.postMergeTest === undefined ? {} : { postMergeTest: options.postMergeTest }),
+          ...(options.conductorWorkspacesRoot === undefined ? {} : { conductorWorkspacesRoot: options.conductorWorkspacesRoot }),
           ...(options.maxCycles === undefined ? {} : { maxCycles: options.maxCycles }),
           dryRun: options.dryRun === true,
         });
